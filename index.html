@@ -1,0 +1,393 @@
+<title>ABC2-game</title>
+<meta charset="utf-8">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="ABC2">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="img/icon-192.png">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&display=swap" rel="stylesheet"> <!-- rounded heavy HUD font close to the original -->
+<style>
+  /* start menu laid out like the original home view (patch 134): hero on the podium, map + PLAY at the bottom, tab bar under them */
+  :root { color-scheme: dark; --bg:#0d1020; --panel:#1b2140; --text:#f4f1ff; --muted:#a9a7c7; --blue:#3aa0ff; --red:#ff3b4e; --gold:#ffb43a; --navy:#141b3f; --navh:19cqw; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family: "Trebuchet MS", system-ui, sans-serif; overflow:hidden; touch-action:none; -webkit-user-select:none; user-select:none; }
+  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  #frame { position:relative; height:100%; aspect-ratio: 9 / 19.5; max-width:100%; background:#000; overflow:hidden; }
+  canvas { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .lil { font-family:"Lilita One","Trebuchet MS",system-ui,sans-serif; font-weight:normal; letter-spacing:.04em; }
+  #menu { position:absolute; inset:0; overflow:hidden; z-index:5; container-type:size; animation:menuIn .28s ease-out;
+    background:radial-gradient(120% 55% at 50% 42%, #2b4b86 0%, #1b305f 40%, #111d40 75%, #0b1330 100%); }
+  #menu button, #menu .hero, #menu summary, #itemsView button { -webkit-tap-highlight-color:transparent; touch-action:manipulation; font:inherit; color:inherit; }
+  #menu button:focus-visible, .hero:focus-visible, #menu summary:focus-visible { outline:3px solid var(--gold); outline-offset:2px; }
+  select, button { font:inherit; }
+  /* scenery: light shafts from the top left, dark statues on both sides */
+  .beams { position:absolute; inset:0; pointer-events:none; background:
+    linear-gradient(105deg, transparent 18%, rgba(160,200,255,.13) 22%, transparent 30%),
+    linear-gradient(112deg, transparent 32%, rgba(160,200,255,.09) 37%, transparent 46%),
+    linear-gradient(100deg, transparent 4%, rgba(160,200,255,.07) 9%, transparent 15%); }
+  .statue { position:absolute; top:17cqh; height:40cqh; opacity:.7; pointer-events:none; filter:brightness(.8) saturate(.8); }
+  .statue.l { left:-17cqw; } .statue.r { right:-17cqw; transform:scaleX(-1); }
+  /* top bar */
+  .tbar { position:absolute; left:0; right:0; top:env(safe-area-inset-top,0px); height:14cqw; display:flex; align-items:center; gap:2.5cqw; padding:0 3.5cqw; box-sizing:border-box; z-index:3; }
+  .brand { display:flex; align-items:center; height:8.5cqw; padding:0 3cqw 0 2.2cqw; border-radius:2.5cqw; background:rgba(8,12,34,.75); box-shadow:inset 0 0 0 .5cqw rgba(140,120,255,.35); }
+  .brand b { font-size:5.4cqw; color:#fff; text-shadow:0 .5cqw 0 #3a1d00, 0 0 3cqw rgba(255,180,58,.4); }
+  #patch { position:absolute; left:26cqw; top:calc(env(safe-area-inset-top,0px) + 5.2cqw); z-index:3; color:var(--muted); font-size:2.8cqw; margin:0; }
+  .tbar .sp { flex:1; }
+  .ibtn { border:0; background:none; padding:0; cursor:pointer; width:10cqw; height:10cqw; display:grid; place-items:center; transition:transform .1s; }
+  .ibtn img { width:7.5cqw; height:7.5cqw; object-fit:contain; filter:drop-shadow(0 .4cqw 0 rgba(0,0,0,.5)); }
+  .ibtn:active { transform:scale(.9); }
+  .chip { display:flex; align-items:center; gap:1.5cqw; height:7cqw; padding:0 2.5cqw 0 1cqw; border-radius:2cqw; background:rgba(8,12,34,.75); font-size:3.6cqw; color:#fff; border:0; cursor:pointer; }
+  .chip img { width:6cqw; height:6cqw; object-fit:contain; }
+  /* home: hero name, hero on the podium, the two invite slots, match options, map + PLAY */
+  #home { position:absolute; inset:0; }
+  .hname { position:absolute; left:0; right:0; top:17.5cqh; text-align:center; z-index:2; pointer-events:none; }
+  .hname .lv { display:inline-grid; place-items:center; width:9cqw; height:10cqw; margin-bottom:1cqw;
+    background:linear-gradient(#6b4fd8,#3b2a8f); clip-path:polygon(0 0,100% 0,100% 72%,50% 100%,0 72%); box-shadow:inset 0 0 0 .6cqw #a88bff; }
+  .hname .lv img { width:6.6cqw; height:6.6cqw; object-fit:contain; margin-top:-1.4cqw; }
+  #menu [hidden] { display:none !important; }
+  .hname .nm { display:block; font-size:6.2cqw; color:#6ff2cf; text-shadow:0 .5cqw 0 #0b2b3a, 0 0 2cqw rgba(0,0,0,.6); line-height:1; }
+  .hname .ti { display:block; font-size:3cqw; color:#c9d6ff; margin-top:.6cqw; }
+  #stage { position:absolute; left:14cqw; right:14cqw; top:29cqh; height:34cqh; cursor:pointer; }
+  #stage .pod { position:absolute; left:-2cqw; right:-2cqw; bottom:0; width:calc(100% + 4cqw); pointer-events:none; }
+  #heroCv { position:absolute; left:-14cqw; right:-14cqw; top:-4cqh; width:calc(100% + 28cqw); height:calc(100% + 4cqh + 1cqw); }
+  #heroImg { position:absolute; left:50%; bottom:5cqh; width:46cqw; transform:translateX(-50%); image-rendering:auto; filter:drop-shadow(0 1cqw 1cqw rgba(0,0,0,.5)); }
+  .side { position:absolute; top:52cqh; width:26cqw; opacity:.65; pointer-events:none; }
+  .side.l { left:-9cqw; } .side.r { right:-9cqw; }
+  .slot { position:absolute; top:42cqh; width:13cqw; height:11cqw; border:0; padding:0; background:none; cursor:pointer; transition:transform .1s; }
+  .slot img { width:100%; height:100%; object-fit:contain; filter:drop-shadow(0 .6cqw 0 rgba(0,0,0,.4)); }
+  .slot.l { left:6cqw; } .slot.r { right:6cqw; }
+  .slot:active, .opt:active { transform:scale(.92); }
+  .opt { position:absolute; top:65cqh; width:30cqw; border:0; background:none; padding:0; cursor:pointer; display:flex; flex-direction:column; align-items:center; transition:transform .1s; }
+  .opt.l { left:5cqw; } .opt.r { right:5cqw; }
+  .opt img { height:14cqw; max-width:20cqw; object-fit:contain; filter:drop-shadow(0 1cqw .6cqw rgba(0,0,0,.45)); }
+  .opt .bar { margin-top:-1cqw; min-width:22cqw; padding:.6cqw 2cqw; border-radius:1.2cqw; background:#1a2b6b; box-shadow:inset 0 -.6cqw 0 rgba(0,0,0,.3); font-size:3.3cqw; color:#fff; white-space:nowrap; }
+  .opt .bar small { display:block; font:2.4cqw "Trebuchet MS",system-ui,sans-serif; color:#9fb4ff; letter-spacing:0; margin-top:-.2cqw; }
+  .bigbtns { position:absolute; left:2cqw; right:2cqw; bottom:calc(var(--navh) + env(safe-area-inset-bottom,0px) + 2cqw); height:19cqw; display:flex; gap:2cqw; }
+  .bigbtns button { flex:1; position:relative; border:.7cqw solid #0b1330; border-radius:1.4cqw; cursor:pointer; padding:0 2cqw; min-width:0; transition:transform .08s, filter .15s; box-shadow:0 1cqw 0 rgba(0,0,0,.45); }
+  .bigbtns button:active { transform:translateY(.8cqw); box-shadow:0 .2cqw 0 rgba(0,0,0,.45); }
+  #mapBtn { background:url(img/ui/btn_blue.png) center/100% 100%, #438beb; color:#fff; }
+  #mapBtn small { display:block; font:bold 2.8cqw "Trebuchet MS",system-ui,sans-serif; color:#d9ecff; letter-spacing:.05em; }
+  #mapBtn b { display:block; font-size:4.4cqw; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-shadow:0 .5cqw 0 #1b4aa0; }
+  #mapBtn .new { position:absolute; right:-1cqw; top:-3.2cqw; background:#e8213a; color:#fff; font-size:2.8cqw; padding:.3cqw 1.4cqw; border-radius:.6cqw; transform:rotate(-4deg); box-shadow:0 .4cqw 0 rgba(0,0,0,.35); }
+  #play { background:url(img/ui/btn_orange.png) center/100% 100%, #ff8230; color:#fff; font-size:8.6cqw; text-shadow:0 .7cqw 0 #b04a00; }
+  #play:hover, #mapBtn:hover { filter:brightness(1.06); }
+  #play::before, #play::after { content:""; position:absolute; left:50%; width:2.6cqw; height:2.6cqw; background:#ffd06a; border:.5cqw solid #0b1330; transform:translateX(-50%) rotate(45deg); }
+  #play::before { top:-2cqw; } #play::after { bottom:-2cqw; }
+  #play small { display:none; }
+  /* tab bar (navigationView): Multiplayer, Heroes, Battle, Items, Training */
+  #nav { position:absolute; left:0; right:0; bottom:0; height:calc(var(--navh) + env(safe-area-inset-bottom,0px)); padding-bottom:env(safe-area-inset-bottom,0px); box-sizing:border-box; display:flex; background:var(--navy); box-shadow:0 -.6cqw 0 #0a1028; z-index:8; }
+  #nav button { flex:1; border:0; background:none; cursor:pointer; position:relative; display:grid; place-items:center; padding:0; transition:background .15s; }
+  #nav button img { width:12cqw; height:12cqw; object-fit:contain; opacity:.55; filter:brightness(1.6) saturate(.4) drop-shadow(0 .5cqw 0 rgba(0,0,0,.5)); transition:transform .15s, opacity .15s; }
+  #nav button.on { background:linear-gradient(#2b3f86,#1d2a63); }
+  #nav button.on img { opacity:1; filter:drop-shadow(0 .6cqw 0 rgba(0,0,0,.5)); transform:translateY(-2.5cqw) scale(1.18); }
+  #nav button.on::after { content:""; position:absolute; bottom:2.2cqw; left:50%; width:5cqw; height:2.4cqw; transform:translateX(-50%); background:#8fb2ff; clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%); }
+  #nav button:active img { transform:scale(.9); }
+  #nav .lbl { position:absolute; bottom:1.2cqw; left:0; right:0; font-size:2.5cqw; color:#c9d6ff; display:none; }
+  #nav button.on .lbl { display:block; }
+  #nav button.on::after { display:none; }
+  /* pages opened from the tab bar or the buttons on the home screen */
+  .page { position:absolute; left:0; right:0; top:calc(env(safe-area-inset-top,0px) + 14cqw); bottom:calc(var(--navh) + env(safe-area-inset-bottom,0px)); overflow-y:auto; -webkit-overflow-scrolling:touch; padding:2cqw 3.5cqw 4cqw; box-sizing:border-box; display:none; z-index:4;
+    background:linear-gradient(#1b2a5a,#101a3c); border-radius:4cqw 4cqw 0 0; box-shadow:0 -1cqw 3cqw rgba(0,0,0,.45); }
+  #menu[data-page="heroes"] #pg-heroes, #menu[data-page="map"] #pg-map, #menu[data-page="mp"] #pg-mp, #menu[data-page="train"] #pg-train, #menu[data-page="set"] #pg-set { display:block; animation:pageIn .2s ease-out; }
+  #menu:not([data-page="home"]) #home > :not(.keep) { visibility:hidden; }
+  .page h2 { margin:1cqw 0 3cqw; font-size:6.4cqw; color:#fff; text-shadow:0 .6cqw 0 #0b1330; display:flex; align-items:baseline; gap:2cqw; }
+  .page h2 small { font:3cqw "Trebuchet MS",system-ui,sans-serif; color:var(--muted); letter-spacing:0; }
+  .page h3 { font-size:4.2cqw; color:var(--gold); margin:4cqw 0 2cqw; }
+  .grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px; }
+  .hero { background:var(--panel); border:2px solid transparent; border-radius:12px; padding:3px 3px 4px; text-align:center; cursor:pointer; transition:transform .12s, background .15s, border-color .15s; }
+  .hero:hover { background:#232a52; }
+  .hero:active { transform:scale(.94); }
+  .hero img { width:100%; aspect-ratio:1; object-fit:contain; display:block; }
+  .hero span { font-size:11px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--muted); }
+  .hero.sel { border-color:var(--gold); background:#2f2a4a; box-shadow:0 0 0 2px rgba(255,180,58,.25), 0 0 14px rgba(255,180,58,.35); animation:pick .22s ease-out; }
+  .hero.sel span { color:#fff; font-weight:bold; }
+  #info { background:var(--panel); border-radius:12px; padding:10px 12px; margin:10px 0; font-size:13px; line-height:1.35; animation:fadeIn .2s ease-out; }
+  #info > div:first-child { font-size:12px; color:var(--muted); }
+  #info > div:first-child b { font:normal 17px "Lilita One","Trebuchet MS",system-ui,sans-serif; letter-spacing:.3px; color:#fff; }
+  #info b { color:var(--gold); }
+  #info .stats { display:grid; grid-template-columns:auto 1fr auto 1fr; gap:2px 8px; margin-top:8px; padding-top:8px; border-top:1px solid #2c3463; color:var(--muted); font-size:11px; }
+  #info .stats span:nth-child(even) { color:var(--text); }
+  .pagebtn { position:sticky; bottom:0; display:block; width:100%; margin-top:3cqw; padding:2.6cqw; border:.7cqw solid #0b1330; border-radius:1.4cqw; background:url(img/ui/btn_orange.png) center/100% 100%, #ff8230; color:#fff; font-size:6cqw; text-shadow:0 .5cqw 0 #b04a00; cursor:pointer; box-shadow:0 1cqw 0 rgba(0,0,0,.45); }
+  .pagebtn.blue { background:url(img/ui/btn_blue.png) center/100% 100%, #438beb; text-shadow:0 .5cqw 0 #1b4aa0; position:static; }
+  .pagebtn:active { transform:translateY(.6cqw); }
+  .card { background:var(--panel); border-radius:12px; padding:10px 12px; margin:10px 0; }
+  .row { display:grid; grid-template-columns:96px 1fr; gap:8px; align-items:center; margin:6px 0 0; font-size:13px; color:var(--muted); }
+  .row select { min-width:0; width:100%; background:#0d1020; color:var(--text); border:1px solid #39407a; border-radius:8px; padding:9px 8px; font-size:14px; }
+  .row select:focus-visible { outline:3px solid var(--gold); outline-offset:1px; }
+  .tiers { display:grid; grid-template-columns:repeat(4,1fr); gap:2cqw; }
+  .tiers button { border:.6cqw solid transparent; border-radius:2.5cqw; background:var(--panel); padding:1.5cqw 0 1.2cqw; cursor:pointer; font-size:3.2cqw; }
+  .tiers button img { display:block; margin:0 auto .6cqw; height:11cqw; }
+  .tiers button.sel { border-color:var(--gold); background:#2f2a4a; }
+  .maps { display:grid; grid-template-columns:1fr 1fr; gap:2.5cqw; }
+  .maps button { position:relative; border:.7cqw solid #0b1330; border-radius:2.5cqw; padding:0; overflow:hidden; height:30cqw; cursor:pointer; background:#0b1330; transition:transform .1s; }
+  .maps button img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:50% 30%; }
+  .maps button span { position:absolute; left:0; right:0; bottom:0; padding:3cqw 1.5cqw 1.4cqw; background:linear-gradient(transparent, rgba(5,10,30,.9)); font-size:3.6cqw; text-align:left; color:#fff; }
+  .maps button.sel { border-color:var(--gold); box-shadow:0 0 0 .6cqw rgba(255,180,58,.35); }
+  .maps button:active { transform:scale(.96); }
+  .note { color:var(--muted); font-size:11px; margin-top:10px; line-height:1.4; }
+  #pg-mp #mp { margin-top:0; }
+  @keyframes menuIn { from { opacity:0; } }
+  @keyframes pageIn { from { opacity:0; transform:translateY(4cqw); } }
+  @keyframes fadeIn { from { opacity:0; } }
+  @keyframes pick { 50% { transform:scale(1.07); } }
+  @keyframes slideIn { from { opacity:0; transform:translateX(24%); } }
+  @media (prefers-reduced-motion: reduce) { #menu, #menu *, #itemsView { animation:none !important; transition:none !important; } }
+  /* items list: opened from the tab bar, sits above the home screen like the other pages */
+  #menu #itemsView { top:calc(env(safe-area-inset-top,0px) + 14cqw); bottom:calc(var(--navh) + env(safe-area-inset-bottom,0px)); inset-inline:0; border-radius:4cqw 4cqw 0 0; z-index:7; }
+  #menu #itemsView .top { background:#1b2a5a; }
+  /* "Simple" menu (Settings > Menu style, patch 138): one screen with everything a match needs. Swipe or arrows pick the hero,
+     arrows pick the arena, one tap picks the bots, then PLAY. 1v1, Items and Tutorial are small links under PLAY. No tab bar. */
+  #menu:not([data-style="clean"]) .c-only { display:none !important; }
+  #menu[data-style="clean"] { background:radial-gradient(90% 45% at 50% 30%, #2a3a78 0%, #172050 55%, #0b1030 100%); }
+  #menu[data-style="clean"] .beams, #menu[data-style="clean"] .statue, #menu[data-style="clean"] .side, #menu[data-style="clean"] .slot, #menu[data-style="clean"] .opt,
+  #menu[data-style="clean"] .hname, #menu[data-style="clean"] #stage .pod, #menu[data-style="clean"] .bigbtns, #menu[data-style="clean"] .tbar, #menu[data-style="clean"] #nav { display:none; }
+  #menu[data-style="clean"] #patch { left:20cqw; top:calc(env(safe-area-inset-top,0px) + 5.2cqw); font-size:2.8cqw; }
+  #menu .s-top { position:absolute; left:0; right:0; top:env(safe-area-inset-top,0px); height:13cqw; display:flex; align-items:center; padding:0 4cqw; box-sizing:border-box; z-index:3; }
+  #menu .s-top b { font-size:5.4cqw; color:#fff; }
+  #menu .s-top .sp { flex:1; }
+  #menu .s-ic { border:0; background:rgba(255,255,255,.08); width:10cqw; height:10cqw; border-radius:50%; display:grid; place-items:center; cursor:pointer; }
+  #menu .s-ic img { width:5.6cqw; height:5.6cqw; object-fit:contain; }
+  #menu[data-style="clean"] #stage { left:14cqw; right:14cqw; top:9cqh; height:44cqh; touch-action:pan-y; }
+  #menu[data-style="clean"] #stage::after { content:""; position:absolute; left:18%; right:18%; bottom:7.5cqh; height:7cqw; border-radius:50%; background:radial-gradient(rgba(0,0,0,.5), transparent 70%); z-index:-1; }
+  #menu[data-style="clean"] #heroCv { left:-14cqw; width:calc(100% + 28cqw); top:0; height:100%; }
+  #menu .s-arrow { position:absolute; top:27cqh; width:12cqw; height:18cqw; border:0; background:none; color:rgba(255,255,255,.75); font-size:16cqw; line-height:1; cursor:pointer; z-index:3; font-family:system-ui,sans-serif; }
+  #menu .s-arrow.l { left:1cqw; } #menu .s-arrow.r { right:1cqw; }
+  #menu .s-arrow:active { transform:scale(.88); color:#fff; }
+  #menu .s-info { position:absolute; left:6cqw; right:6cqw; top:51cqh; text-align:center; z-index:3; pointer-events:none; }
+  #menu .s-info b { display:block; font-size:7.4cqw; color:#fff; line-height:1.05; text-shadow:0 .6cqw 0 rgba(0,0,0,.35); }
+  #menu .s-info span { display:block; font-size:3.4cqw; color:#aab3e0; margin-top:.8cqw; }
+  #menu .s-info i { display:inline-block; font-style:normal; margin-top:2cqw; padding:.8cqw 2.6cqw; border-radius:5cqw; background:rgba(255,180,58,.14); color:#ffcf73; font-size:3.1cqw; }
+  #menu .s-card { position:absolute; left:5cqw; right:5cqw; top:66cqh; padding:3cqw 3.5cqw; border-radius:4cqw; background:rgba(8,12,40,.55); box-shadow:inset 0 0 0 .3cqw rgba(140,160,255,.15); z-index:3; display:grid; gap:2.6cqw; }
+  #menu .s-row { display:grid; grid-template-columns:16cqw 1fr; align-items:center; gap:2cqw; }
+  #menu .s-row > span { font-size:3.2cqw; color:#8f98c8; letter-spacing:.05em; text-transform:uppercase; }
+  #menu .s-map { display:grid; grid-template-columns:9cqw 1fr 9cqw; align-items:center; }
+  #menu .s-map button { border:0; background:none; cursor:pointer; color:#fff; padding:0; }
+  #menu .s-map .ar { font-size:7cqw; line-height:1; opacity:.75; font-family:system-ui,sans-serif; }
+  #menu .s-map .nm { font-size:4.2cqw; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #menu .s-seg { display:grid; grid-template-columns:repeat(4,1fr); gap:1cqw; padding:.8cqw; border-radius:3cqw; background:rgba(255,255,255,.06); }
+  #menu .s-seg button { border:0; border-radius:2.2cqw; background:none; color:#aab3e0; font-size:3.3cqw; padding:2cqw 0; cursor:pointer; transition:background .15s, color .15s; }
+  #menu .s-seg button.sel { background:#3a5bd8; color:#fff; box-shadow:0 .5cqw 0 rgba(0,0,0,.3); }
+  #menu .s-play { position:absolute; left:5cqw; right:5cqw; bottom:calc(env(safe-area-inset-bottom,0px) + 14cqw); height:17cqw; border:0; border-radius:4cqw; cursor:pointer; z-index:3;
+    background:linear-gradient(#ffc24a,#ff8a1f); color:#fff; text-shadow:0 .6cqw 0 #b85a0a; font-size:8.4cqw; letter-spacing:.08em; box-shadow:0 1.4cqw 0 #b85a0a, 0 3cqw 5cqw rgba(0,0,0,.4); transition:transform .08s, box-shadow .08s; }
+  #menu .s-play:active { transform:translateY(1.2cqw); box-shadow:0 .2cqw 0 #b85a0a, 0 1cqw 2cqw rgba(0,0,0,.4); }
+  #menu .s-links { position:absolute; left:0; right:0; bottom:calc(env(safe-area-inset-bottom,0px) + 3cqw); display:flex; justify-content:center; gap:3cqw; z-index:3; }
+  #menu .s-links button { border:0; background:rgba(255,255,255,.07); color:#dfe4ff; border-radius:6cqw; padding:2.2cqw 4.2cqw; font-size:3.5cqw; cursor:pointer; }
+  #menu .s-links button:active, #menu .s-ic:active { transform:scale(.94); }
+  #menu #sBack { position:absolute; left:3cqw; top:calc(env(safe-area-inset-top,0px) + 2cqw); z-index:9; border:0; background:rgba(255,255,255,.1); color:#fff; border-radius:6cqw; padding:1.8cqw 4cqw; font-size:3.6cqw; cursor:pointer; }
+  #menu[data-style="clean"][data-page="home"] #sBack, #menu[data-style="clean"]:not([data-page="home"]) #patch { display:none; }
+  #menu[data-style="clean"] .page { top:calc(env(safe-area-inset-top,0px) + 13cqw); bottom:0; background:rgba(12,16,44,.97); }
+  #menu[data-style="clean"] #itemsView { bottom:0; }
+  #itemsView { position:absolute; inset:0; overflow-y:auto; background:linear-gradient(#1b1f3e,#0d1020); padding:0 16px 16px; box-sizing:border-box; z-index:6; }
+  #itemsView:not([hidden]) { animation:slideIn .24s ease-out; }
+  #itemsView .top { position:sticky; top:0; z-index:1; display:flex; align-items:center; gap:8px; margin:0 -16px 4px; padding:14px 16px 8px; background:#1b1f3e; box-shadow:0 6px 10px -6px rgba(0,0,0,.6); }
+  #itemsView h2 { flex:1; margin:0; font-size:22px; font-family:"Lilita One","Trebuchet MS",system-ui,sans-serif; font-weight:normal; letter-spacing:.5px; }
+  #itemsClose { border:2px solid #39407a; border-radius:10px; background:var(--panel); color:var(--text); font-weight:bold; padding:6px 12px; cursor:pointer; }
+  #itemsView .sub { color:var(--muted); font-size:12px; margin-bottom:10px; }
+  #itemsView h3 { font-size:13px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin:14px 0 6px; }
+  .itm { display:grid; grid-template-columns:52px 1fr; gap:10px; align-items:center; background:var(--panel); border-radius:12px; padding:8px 10px; margin-bottom:6px; }
+  .itm.off { opacity:.55; }
+  .itm .ic { position:relative; width:52px; height:52px; border-radius:12px; }
+  .itm .ic img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  .itm .ic .glyph { position:absolute; inset:0; display:grid; place-items:center; font-size:11px; color:var(--muted); text-align:center; }
+  .itm .nm { font-weight:bold; font-size:14px; }
+  .itm .tags { display:flex; flex-wrap:wrap; gap:4px; margin:3px 0; }
+  .itm .tag { font-size:10px; text-transform:uppercase; letter-spacing:.5px; padding:1px 6px; border-radius:6px; background:#2a3168; color:#dfe3ff; }
+  .itm .tag.act { background:#7a4a10; color:#ffe3b0; }
+  .itm .tag.offt { background:#5a1a26; color:#ffc2cc; }
+  .itm .ds { font-size:12px; color:var(--muted); line-height:1.35; min-width:0; }
+  .note { color:var(--muted); font-size:11px; margin-top:10px; line-height:1.4; }
+</style>
+<div id="wrap"><div id="frame">
+  <canvas id="c3"></canvas>
+  <canvas id="c"></canvas>
+  <canvas id="c4" style="pointer-events:none"></canvas>
+  <div id="menu" data-page="home">
+    <div class="beams" data-k></div>
+    <img class="statue l" src="img/ui/statue.png" alt="" data-k><img class="statue r" src="img/ui/statue.png" alt="" data-k>
+    <div class="tbar" data-k>
+      <div class="brand"><b class="lil">ABC2</b></div>
+      <span class="sp"></span>
+      <button class="chip lil" id="tbMp" title="Multiplayer"><img src="img/ui/nav_socialIcon_active.png" alt="">1v1</button>
+      <button class="ibtn" id="tbSet" title="Settings"><img src="img/ui/settings.png" alt="Settings"></button>
+    </div>
+    <div class="sub" id="patch" data-k>Patch 191</div>
+    <div id="home" data-k>
+      <div class="hname lil"><span class="lv"><img id="hIcon" alt=""></span><span class="nm" id="hName"></span><span class="ti" id="hTitle"></span></div>
+      <img class="side l" src="img/ui/podium.png" alt=""><img class="side r" src="img/ui/podium.png" alt="">
+      <button class="slot l" data-go="mp" title="Play with a friend"><img src="img/ui/invite.png" alt="Invite"></button>
+      <button class="slot r" data-go="mp" title="Play with a friend"><img src="img/ui/invite.png" alt="Invite"></button>
+      <div id="stage" title="Tap: attack · Hold: hero info"><img class="pod" src="img/ui/podium.png" alt=""><canvas id="heroCv"></canvas><img id="heroImg" alt="" hidden></div>
+      <button class="opt l lil" id="tierBtn"><img id="tierImg" src="img/ui/rank_platinum.png" alt=""><span class="bar"><span id="tierTxt"></span><small>BOTS</small></span></button>
+      <button class="opt r lil" id="ilvlBtn"><img id="ilvlImg" src="img/item_band.png" alt=""><span class="bar"><span id="ilvlTxt"></span><small>ITEM LEVEL</small></span></button>
+      <div class="s-top c-only"><b class="lil">ABC2</b><span class="sp"></span><button class="s-ic" data-go="set" title="Settings"><img src="img/ui/settings.png" alt="Settings"></button></div>
+      <button class="s-arrow l c-only" id="sPrev" aria-label="Previous hero">‹</button><button class="s-arrow r c-only" id="sNext" aria-label="Next hero">›</button>
+      <div class="s-info c-only"><b class="lil" id="sName"></b><span id="sTitle"></span><i id="sSpec"></i></div>
+      <div class="s-card c-only">
+        <div class="s-row"><span>Arena</span><div class="s-map"><button class="ar" id="sMapPrev" aria-label="Previous arena">‹</button><button class="nm lil" id="sMap" data-go="map"></button><button class="ar" id="sMapNext" aria-label="Next arena">›</button></div></div>
+        <div class="s-row"><span>Bots</span><div class="s-seg" id="sSeg"></div></div>
+      </div>
+      <button class="s-play lil c-only" id="sPlay">PLAY</button>
+      <div class="s-links c-only"><button data-go="mp">1v1 with a friend</button><button data-go="items">Items</button><button data-go="train">Tutorial</button></div>
+      <div class="bigbtns">
+        <button id="mapBtn" class="lil"><span class="new">MAP</span><small>ARENA</small><b id="mapName"></b></button>
+        <button id="play" class="lil">PLAY<small id="playSub"></small></button>
+      </div>
+    </div>
+    <section class="page" id="pg-heroes" data-k>
+      <h2 class="lil">Heroes <small>Double-tap to play now</small></h2>
+      <div class="grid" id="heroes"></div>
+      <div id="info"></div>
+      <button class="pagebtn lil" id="play2">PLAY</button>
+    </section>
+    <section class="page" id="pg-map" data-k>
+      <h2 class="lil">Match</h2>
+      <h3 class="lil">Bots</h3>
+      <div class="tiers" id="tiers"></div>
+      <h3 class="lil">Arena</h3>
+      <div class="maps" id="maps"></div>
+      <label class="row" hidden><span>Map</span><select id="map"></select></label>
+      <label class="row" hidden><span>Bots</span><select id="tier"></select></label>
+    </section>
+    <section class="page" id="pg-train" data-k>
+      <h2 class="lil">Training</h2>
+      <button class="pagebtn blue lil" id="tut">TUTORIAL</button>
+      <button class="pagebtn blue lil" id="herotest" style="margin-top:2cqw">HERO TEST</button>
+      <div class="card"><div class="lil" style="color:var(--gold);font-size:15px">How to play</div>
+        <div class="note" style="margin-top:6px">Move with the joystick (bottom left) or WASD/arrow keys. You attack automatically. Special: the button in the bottom right or Space. Items are offered at level 5 and 10 (tap a card or press 1–3). Active items: the buttons next to special, or Q/E.</div></div>
+    </section>
+    <section class="page" id="pg-mp" data-k>
+      <h2 class="lil">Multiplayer <small>1v1 with a friend</small></h2>
+    </section>
+    <section class="page" id="pg-set" data-k>
+      <h2 class="lil">Settings</h2>
+      <div class="card" style="margin-top:0">
+        <label class="row"><span>Graphics</span><select id="gfx"></select></label>
+        <label class="row"><span>Effects</span><select id="effects"></select></label>
+        <label class="row"><span>Sound</span><select id="sound"></select></label>
+        <label class="row"><span>Item level</span><select id="ilvl"></select></label>
+        <label class="row"><span>Beginner buff</span><select id="onb"></select></label>
+        <label class="row"><span>Menu style</span><select id="mstyle"><option value="orig">Original</option><option value="clean">Simple</option></select></label>
+      </div>
+      <div id="setExtra"></div>
+    </section>
+    <button id="sBack" class="lil c-only" data-k>‹ Back</button>
+    <nav id="nav" data-k>
+      <button data-go="mp" title="Multiplayer"><img src="img/ui/nav_socialIcon_active.png" alt=""><span class="lbl lil">1v1</span></button>
+      <button data-go="heroes" title="Heroes"><img src="img/ui/nav_heroesIcon_active.png" alt=""><span class="lbl lil">Heroes</span></button>
+      <button data-go="home" class="on" title="Battle"><img src="img/ui/nav_battleIcon_inactive.png" alt=""><span class="lbl lil">Battle</span></button>
+      <button data-go="items" id="itemsBtn" title="Items"><img src="img/ui/nav_gearIcon_inactive.png" alt=""><span class="lbl lil">Items</span></button>
+      <button data-go="train" title="Training"><img src="img/ui/nav_leaderboardIcon_active.png" alt=""><span class="lbl lil">Training</span></button>
+    </nav>
+  </div>
+  <div id="itemsView" hidden><div class="top"><h2>Items</h2><button id="itemsClose">CLOSE</button></div><div class="sub" id="itemsSub"></div><div id="itemsList"></div></div>
+</div></div>
+<script src="gamedata.js"></script>
+<script src="game.js"></script>
+<script src="three.min.js"></script>
+<script src="models3d.js"></script>
+<script src="heroes3d.js"></script>
+<script src="render3d.js"></script>
+<script src="recorder.js"></script>
+<script src="net.js"></script>
+<script src="audio.js"></script>
+<script src="music.js"></script>
+<script src="herotest.js"></script>
+<script>
+  // original-style menu (patch 134): pages for the tab bar, the hero showcase on the podium, and the home screen's labels kept in sync
+  (() => {
+    const $ = id => document.getElementById(id), menu = $('menu'), A = window.__arena;
+    const iv = $('itemsView'); menu.appendChild(iv); // the item list opens above the home screen with the tab bar still visible
+    const mp = $('mp'); if (mp) $('pg-mp').appendChild(mp); // net.js put it next to TUTORIAL; it stays the page's last child (recorder.js inserts after it)
+    let page = 'home';
+    const go = p => {
+      if (p === 'items') { if (iv.hidden) A && $('itemsBtn').onclick && $('itemsBtn').onclick(); }
+      else if (!iv.hidden) iv.hidden = true;
+      page = p; menu.dataset.page = p === 'items' ? 'home' : p;
+      document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.go === p || (p === 'map' || p === 'set') && b.dataset.go === 'home'));
+      const pg = $('pg-' + p); if (pg) pg.scrollTop = 0;
+      sync(true);
+    };
+    document.querySelectorAll('[data-go]').forEach(b => { if (b.id !== 'itemsBtn') b.addEventListener('click', () => go(b.dataset.go)); });
+    $('itemsBtn').addEventListener('click', () => go('items'));
+    $('itemsClose').addEventListener('click', () => go('home'));
+    $('tbSet').onclick = () => go(page === 'set' ? 'home' : 'set');
+    $('tbMp').onclick = () => go('mp');
+    $('mapBtn').onclick = () => go('map');
+    $('play2').onclick = () => $('play').click();
+    // home buttons cycle the match options; the selects stay the source of truth for game.js
+    const cycle = sel => { const o = sel.options, i = (sel.selectedIndex + 1) % o.length; sel.value = o[i].value; sel.dispatchEvent(new Event('change')); sync(); };
+    $('tierBtn').onclick = () => cycle($('tier'));
+    $('ilvlBtn').onclick = () => cycle($('ilvl'));
+    // tap the hero to see a swing, hold for the hero page
+    let hold = 0;
+    $('stage').addEventListener('pointerdown', () => { hold = setTimeout(() => { hold = -1; go('heroes'); }, 450); });
+    $('stage').addEventListener('pointerup', () => { if (hold > 0) { clearTimeout(hold); if (window.R3D && R3D.showcaseSwing) R3D.showcaseSwing(); } hold = 0; });
+    $('stage').addEventListener('pointerleave', () => { if (hold > 0) clearTimeout(hold); hold = 0; });
+    // arena and bot pickers built from the selects game.js filled
+    const mapSel = $('map'), tierSel = $('tier');
+    const buildPickers = () => {
+      $('maps').textContent = ''; [...mapSel.options].forEach(o => { const b = document.createElement('button'); b.dataset.v = o.value;
+        b.innerHTML = `<img src="img/ui/map_${o.value}.jpg" alt="" loading="lazy" onerror="this.remove()"><span class="lil"></span>`; b.querySelector('span').textContent = o.textContent;
+        b.onclick = () => { mapSel.value = o.value; mapSel.dispatchEvent(new Event('change')); go('home'); }; $('maps').appendChild(b); });
+      $('tiers').textContent = ''; [...tierSel.options].forEach(o => { const b = document.createElement('button'); b.className = 'lil'; b.dataset.v = o.value;
+        b.innerHTML = `<img src="img/ui/rank_${o.value.toLowerCase()}.png" alt="">`; b.append(o.textContent);
+        b.onclick = () => { tierSel.value = o.value; tierSel.dispatchEvent(new Event('change')); sync(); }; $('tiers').appendChild(b); });
+    };
+    buildPickers();
+    // keep the home screen in step with what game.js / net.js changed (hero, map, options, multiplayer lobby)
+    let last = '';
+    const sync = force => {
+      if (!A || menu.style.display === 'none') return;
+      const h = A.selectedHero, H = A.HEROES[h] || {}, m = mapSel.selectedOptions[0], lobby = !!window.__mpLobby;
+      const key = [h, mapSel.value, tierSel.value, $('ilvl').value, lobby, page].join('|');
+      $('play2').hidden = lobby;
+      if (key === last && !force) return; last = key;
+      $('hName').textContent = A.heroName(h); $('hTitle').textContent = H.title || '';
+      $('hIcon').src = 'img/ui_abilities_' + h.toLowerCase() + '_special.png';
+      $('sName').textContent = A.heroName(h); $('sTitle').textContent = H.title || ''; $('sSpec').textContent = H.special ? 'Special: ' + H.special : '';
+      $('sMap').textContent = m ? m.textContent.replace(/ \(FTUE\)$/, '') : '';
+      document.querySelectorAll('#sSeg button').forEach(b => b.classList.toggle('sel', b.dataset.v === tierSel.value)); $('sPlay').hidden = lobby;
+      $('playSub').textContent = m ? m.textContent.replace(/ \(FTUE\)$/, '') + ' · ' + (tierSel.selectedOptions[0] ? tierSel.selectedOptions[0].textContent + ' bots' : '') : '';
+      $('mapName').textContent = m ? m.textContent.replace(/ \(FTUE\)$/, '') : '';
+      $('tierTxt').textContent = tierSel.selectedOptions[0] ? tierSel.selectedOptions[0].textContent : ''; $('tierImg').src = 'img/ui/rank_' + tierSel.value.toLowerCase() + '.png';
+      $('ilvlTxt').textContent = 'Level ' + ($('ilvl').value || 1);
+      document.querySelectorAll('#maps button').forEach(b => b.classList.toggle('sel', b.dataset.v === mapSel.value));
+      document.querySelectorAll('#tiers button').forEach(b => b.classList.toggle('sel', b.dataset.v === tierSel.value));
+      if (page !== 'home') $('heroCv').hidden = true;
+      else { const ok = window.R3D && R3D.showcase && A && R3D.showcase($('heroCv'), h);
+        $('heroCv').hidden = !ok; $('heroImg').hidden = !!ok; if (!ok) $('heroImg').src = 'img/profile_' + h.toLowerCase() + '.png'; }
+    };
+    // anything another script adds to the menu (saved-match meter, download button, storage warning) goes on the settings page
+    const tidy = () => [...menu.children].forEach(c => { if (!c.hasAttribute('data-k') && c !== iv) $('setExtra').appendChild(c); });
+    new MutationObserver(tidy).observe(menu, { childList: true }); tidy();
+    new MutationObserver(() => sync(true)).observe($('heroes'), { childList: true });
+    // simple menu: arrows or a swipe on the hero step through the hero grid, arrows step through arenas, one tap picks the bots
+    const stepHero = d => { const g = [...$('heroes').children], i = g.findIndex(e => e.classList.contains('sel')); const n = g[(i + d + g.length) % g.length]; if (n) n.click(); };
+    const stepMap = d => { const i = (mapSel.selectedIndex + d + mapSel.options.length) % mapSel.options.length; mapSel.value = mapSel.options[i].value; mapSel.dispatchEvent(new Event('change')); sync(); };
+    $('sPrev').onclick = () => stepHero(-1); $('sNext').onclick = () => stepHero(1);
+    $('sMapPrev').onclick = () => stepMap(-1); $('sMapNext').onclick = () => stepMap(1);
+    $('sPlay').onclick = () => $('play').click(); $('sBack').onclick = () => go('home');
+    [...tierSel.options].forEach(o => { const b = document.createElement('button'); b.className = 'lil'; b.dataset.v = o.value; b.textContent = o.textContent;
+      b.onclick = () => { tierSel.value = o.value; tierSel.dispatchEvent(new Event('change')); sync(); }; $('sSeg').appendChild(b); });
+    let sx = null; $('stage').addEventListener('pointerdown', e => { sx = e.clientX; });
+    $('stage').addEventListener('pointerup', e => { if (menu.dataset.style === 'clean' && sx !== null && Math.abs(e.clientX - sx) > 40) { if (hold > 0) clearTimeout(hold); hold = 0; stepHero(e.clientX < sx ? 1 : -1); } sx = null; }, true);
+    // back from a match: home, or the lobby when a friend is connected
+    new MutationObserver(() => { if (menu.style.display !== 'none') go(window.__mpLobby ? 'mp' : 'home'); }).observe(menu, { attributes: true, attributeFilter: ['style'] });
+    [mapSel, tierSel, $('ilvl')].forEach(s => s.addEventListener('change', () => sync()));
+    setInterval(sync, 300);
+    // menu style: the original home view or the clean one, remembered on this device
+    const ms = $('mstyle'), setStyle = v => { menu.dataset.style = v; ms.value = v; try { localStorage.setItem('abc2-menustyle', v); } catch (e) {} sync(true); };
+    let msv = 'orig'; try { msv = localStorage.getItem('abc2-menustyle') || 'orig'; } catch (e) {}
+    ms.onchange = () => setStyle(ms.value); setStyle(msv === 'clean' ? 'clean' : 'orig');
+    go('home');
+  })();
+</script>
+<script>
+  // PWA: installable app + offline play. Only when the game is the top page (GitHub Pages, installed app), not inside claude.ai's frame.
+  if ('serviceWorker' in navigator && window.top === window && (location.protocol === 'https:' || location.hostname === 'localhost'))
+    addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
